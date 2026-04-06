@@ -12,7 +12,10 @@ dotenv.config();
 
 export const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin:true,
+  credentials:true
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use('/uploads', express.static(path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads')));
