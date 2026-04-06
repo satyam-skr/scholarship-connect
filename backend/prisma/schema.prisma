@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  donor
+  student
+  admin
+  institution
+  verifier
+}
+
+enum EnrollmentStatus {
+  active
+  graduated
+  suspended
+}
+
+enum ScholarshipStatus {
+  open
+  closed
+  awarded
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+  under_review
+}
+
+enum DocumentType {
+  transcript
+  admission_letter
+  id_proof
+  recommendation
+}
+
+enum VerificationStatus {
+  pending
+  verified
+  rejected
+}
+
+enum ProgressStatus {
+  completed
+  in_progress
+}
+
+enum MilestoneStatus {
+  pending
+  approved
+  rejected
+}
+
+enum TransactionStatus {
+  pending
+  confirmed
+  completed
+  failed
+}
+
+enum TransactionType {
+  donation
+  fund_release
+  milestone_reward
+}
+
+model User {
+  id               String             @id @default(cuid())
+  name             String
+  email            String             @unique
+  passwordHash     String
+  role             UserRole
+  avatar           String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  studentProfile   StudentProfile?
+  donorScholarships Scholarship[]     @relation("DonorScholarships")
+  awardedScholarships Scholarship[]   @relation("AwardedScholarships")
+
+  applications     Application[]      @relation("StudentApplications")
+  reviewedApps     Application[]      @relation("ApplicationReviewer")
+
+  donationsMade    Donation[]         @relation("DonationDonor")
+  donationsReceived Donation[]        @relation("DonationStudent")
+
+  milestones       Milestone[]        @relation("StudentMilestones")
+  verifiedDocs     Document[]         @relation("DocumentVerifier")
+
+  ledgerAsDonor    LedgerTransaction[] @relation("LedgerDonor")
+  ledgerAsStudent  LedgerTransaction[] @relation("LedgerStudent")
+
+  enrollmentVerifications EnrollmentVerification[] @relation("EnrollmentVerifiedBy")
+}
+
+model StudentProfile {
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  institution      String
+  fieldOfStudy     String
+  gpa              Float
+  enrollmentStatus EnrollmentStatus @default(active)
+  receivedFunds    Float            @default(0)
+
+  user             User             @relation(fields: [userId], references: [id])
+  documents        Document[]
+  academicProgress AcademicProgress[]
+}
+
+model Scholarship {
+  id            String            @id @default(cuid())
+  title         String
+  amount        Float
+  fieldOfStudy  String
+  status        ScholarshipStatus @default(open)
+  createdAt     DateTime          @default(now())
+
+  donorId       String
+  donor         User              @relation("DonorScholarships", fields: [donorId], references: [id])
+
+  awardedToId   String?
+  awardedTo     User?             @relation("AwardedScholarships", fields: [awardedToId], references: [id])
+
+  applications  Application[]
+  donations     Donation[]
+}
+
+model Application {
+  id            String            @id @default(cuid())
+  status        ApplicationStatus @default(pending)
+  submittedAt   DateTime          @default(now())
+  reviewedAt    DateTime?
+
+  studentId     String
+  student       User              @relation("StudentApplications", fields: [studentId], references: [id])
+
+  scholarshipId String
+  scholarship   Scholarship       @relation(fields: [scholarshipId], references: [id])
+
+  reviewedById  String?
+  reviewedBy    User?             @relation("ApplicationReviewer", fields: [reviewedById], references: [id])
+}
+
+model Donation {
+  id            String   @id @default(cuid())
+  amount        Float
+  date          DateTime @default(now())
+  fieldOfStudy  String
+
+  donorId       String
+  donor         User     @relation("DonationDonor", fields: [donorId], references: [id])
+
+  scholarshipId String?
+  scholarship   Scholarship? @relation(fields: [scholarshipId], references: [id])
+
+  studentId     String?
+  student       User?    @relation("DonationStudent", fields: [studentId], references: [id])
+
+  ledgerTransaction LedgerTransaction?
+}
+
+model LedgerTransaction {
+  id            String            @id @default(cuid())
+  amount        Float
+  timestamp     DateTime          @default(now())
+  previousHash  String
+  currentHash   String
+
+  txHash        String            @unique
+  status        TransactionStatus @default(completed)
+  type          TransactionType
+  blockNumber   Int?
+
+  donorId       String?
+  donor         User?             @relation("LedgerDonor", fields: [donorId], references: [id])
+
+  studentId     String?
+  student       User?             @relation("LedgerStudent", fields: [studentId], references: [id])
+
+  donationId    String?           @unique
+  donation      Donation?         @relation(fields: [donationId], references: [id])
+
+  milestoneId   String?
+}
+
+model Milestone {
+  id            String          @id @default(cuid())
+  description   String
+  status        MilestoneStatus @default(pending)
+  amount        Float
+  submittedAt   DateTime        @default(now())
+  reviewedAt    DateTime?
+
+  studentId     String
+  student       User            @relation("StudentMilestones", fields: [studentId], references: [id])
+}
+
+model Document {
+  id            String             @id @default(cuid())
+  name          String
+  type          DocumentType
+  uploadedAt    DateTime           @default(now())
+  status        VerificationStatus @default(pending)
+  filePath      String
+
+  studentProfileId String
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  verifiedById  String?
+  verifiedBy    User?          @relation("DocumentVerifier", fields: [verifiedById], references: [id])
+}
+
+model AcademicProgress {
+  id            String         @id @default(cuid())
+  semester      String
+  gpa           Float
+  credits       Int
+  status        ProgressStatus
+
+  studentProfileId String
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+}
+
+model EnrollmentVerification {
+  id             String   @id @default(cuid())
+  studentId      String
+  verifiedById   String
+  verifiedAt     DateTime @default(now())
+
+  verifiedBy     User     @relation("EnrollmentVerifiedBy", fields: [verifiedById], references: [id])
+}
